@@ -15,17 +15,24 @@ export type NetworkConfig = {
 export const USDC_NETWORKS: NetworkConfig[] = [
   {
     tokenAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", // USDC on Base Sepolia
-    chainId: toHex(84532), // Base Sepolia network ID (84532 in hex)
+    chainId: toHex(84532),
     decimals: 6,
     networkName: "Base Sepolia",
     networkId: "base-sepolia",
   },
   {
     tokenAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base Mainnet
-    chainId: toHex(8453), // Base Mainnet network ID (8453 in hex)
+    chainId: toHex(8453),
     decimals: 6,
     networkName: "Base Mainnet",
     networkId: "base-mainnet",
+  },
+  {
+    tokenAddress: "0x82653402f5e59968993177BF1BC1029A1802dac8", // Replace with your Sepolia USDC token
+    chainId: toHex(11155111), // Sepolia chain ID in hex
+    decimals: 6,
+    networkName: "Ethereum Sepolia",
+    networkId: "eth-sepolia",
   },
 ];
 
@@ -44,10 +51,6 @@ export class USDCHandler {
   private networkConfig: NetworkConfig;
   private publicClient;
 
-  /**
-   * Create a USDC handler for a specific network
-   * @param networkId - The network identifier ("base-sepolia" or "base-mainnet")
-   */
   constructor(networkId: string) {
     const config = USDC_NETWORKS.find(
       (network) => network.networkId === networkId,
@@ -57,15 +60,33 @@ export class USDCHandler {
     }
 
     this.networkConfig = config;
+
     this.publicClient = createPublicClient({
-      chain: networkId === "base-mainnet" ? base : baseSepolia,
+      chain:
+        networkId === "base-mainnet"
+          ? base
+          : networkId === "base-sepolia"
+          ? baseSepolia
+          : {
+              id: 11155111,
+              name: "Ethereum Sepolia",
+              nativeCurrency: { name: "Sepolia ETH", symbol: "ETH", decimals: 18 },
+              rpcUrls: {
+                default: {
+                  http: ["https://ethereum-sepolia.publicnode.com"],
+                },
+              },
+              blockExplorers: {
+                default: {
+                  name: "Etherscan",
+                  url: "https://sepolia.etherscan.io",
+                },
+              },
+            },
       transport: http(),
     });
   }
 
-  /**
-   * Get USDC balance for a given address
-   */
   async getUSDCBalance(address: string): Promise<string> {
     const balance = await this.publicClient.readContract({
       address: this.networkConfig.tokenAddress as `0x${string}`,
@@ -77,17 +98,13 @@ export class USDCHandler {
     return formatUnits(balance, this.networkConfig.decimals);
   }
 
-  /**
-   * Create wallet send calls parameters for USDC transfer
-   */
   createUSDCTransferCalls(
     fromAddress: string,
     recipientAddress: string,
     amount: number,
   ): WalletSendCallsParams {
-    const methodSignature = "0xa9059cbb"; // Function signature for ERC20 'transfer(address,uint256)'
+    const methodSignature = "0xa9059cbb"; // ERC20 transfer(address,uint256)
 
-    // Format the transaction data following ERC20 transfer standard
     const transactionData = `${methodSignature}${recipientAddress
       .slice(2)
       .padStart(64, "0")}${BigInt(amount).toString(16).padStart(64, "0")}`;
@@ -109,7 +126,6 @@ export class USDCHandler {
             networkId: this.networkConfig.networkId,
           },
         },
-        /* add more calls here */
       ],
     };
   }
